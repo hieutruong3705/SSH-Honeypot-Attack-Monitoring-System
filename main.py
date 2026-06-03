@@ -12,7 +12,7 @@ from config import HONEYPOT_HOST, HONEYPOT_PORT, API_HOST, API_PORT
 # ==========================================
 # Lệnh này sẽ lấy toàn bộ file trong thư mục 'frontend' (index.html, style.css...) 
 # và đẩy thẳng ra cổng 8000
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="frontend")
 
 def main():
     init_db()
