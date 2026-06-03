@@ -60,20 +60,44 @@ class CommandRegistry:
         # ── filesystem ────────────────────────────────────────────────────────
 
         def _ls(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
+            # Tách riêng flag (như -l, -a) và tên thư mục
+            flags = [a for a in args if a.startswith('-')]
             non_flags = [a for a in args if not a.startswith('-')]
             path = fs.resolve(s.cwd, non_flags[-1]) if non_flags else s.cwd
+
             if not fs.is_dir(path):
                 if fs.is_file(path):
                     return path.split('/')[-1]
                 return f"ls: cannot access '{non_flags[-1] if non_flags else path}': No such file or directory"
+
             items = fs.listdir(path)
             if not items:
                 return ''
-            parts = []
-            for item in items:
-                child = (path.rstrip('/') + '/' + item)
-                parts.append(item + '/' if fs.is_dir(child) else item)
-            return '  '.join(parts)
+
+            # Kiểm tra xem hacker có dùng cờ '-l' (hoặc gọi qua lệnh ll) không
+            is_detailed = any('l' in flag for flag in flags)
+
+            if is_detailed:
+                # Trả về danh sách DỌC chi tiết (Fake permission, size, date)
+                parts = ["total 12"]
+                # Thêm thư mục hiện tại (.) và thư mục cha (..) cho giống thật
+                parts.append("drwxr-xr-x 1 root root 4096 May 29 17:30 .")
+                parts.append("drwxr-xr-x 1 root root 4096 May 29 17:00 ..")
+                
+                for item in items:
+                    child = (path.rstrip('/') + '/' + item)
+                    if fs.is_dir(child):
+                        parts.append(f"drwxr-xr-x 1 root root 4096 May 29 17:30 {item}")
+                    else:
+                        parts.append(f"-rw-r--r-- 1 root root 1024 May 29 17:30 {item}")
+                return '\n'.join(parts)
+            else:
+                # Trả về danh sách NGANG bình thường
+                parts = []
+                for item in items:
+                    child = (path.rstrip('/') + '/' + item)
+                    parts.append(item + '/' if fs.is_dir(child) else item)
+                return '  '.join(parts)
 
         def _cd(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
             if not args:
@@ -132,8 +156,8 @@ class CommandRegistry:
                     'USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND\n'
                     'root           1  0.0  0.1 169984 13064 ?        Ss   May29   0:03 /sbin/init\n'
                     'root         234  0.0  0.0  72296  3580 ?        Ss   May29   0:00 /usr/sbin/sshd\n'
-                    f'{s.username}       1234  0.0  0.1  21888  5296 pts/0    Ss   17:30   0:00 -bash\n'
-                    f'{s.username}       1337  0.0  0.0  21104  3372 pts/0    R+   17:31   0:00 ps'
+                    f'{s.username}        1234  0.0  0.1  21888  5296 pts/0    Ss   17:30   0:00 -bash\n'
+                    f'{s.username}        1337  0.0  0.0  21104  3372 pts/0    R+   17:31   0:00 ps'
                 )
             return (
                 '  PID TTY          TIME CMD\n'
@@ -161,9 +185,9 @@ class CommandRegistry:
             return (
                 'Active Internet connections (only servers)\n'
                 'Proto Recv-Q Send-Q Local Address    Foreign Address  State\n'
-                'tcp        0      0 0.0.0.0:22       0.0.0.0:*        LISTEN\n'
-                'tcp        0      0 0.0.0.0:80       0.0.0.0:*        LISTEN\n'
-                'tcp        0      0 127.0.0.1:5432   0.0.0.0:*        LISTEN'
+                'tcp        0      0 0.0.0.0:22       0.0.0.0:* LISTEN\n'
+                'tcp        0      0 0.0.0.0:80       0.0.0.0:* LISTEN\n'
+                'tcp        0      0 127.0.0.1:5432   0.0.0.0:* LISTEN'
             )
 
         def _df(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
