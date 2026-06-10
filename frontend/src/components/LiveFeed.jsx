@@ -43,7 +43,7 @@ export default function LiveFeed({ attacks }) {
               </div>
               <div className="text-right shrink-0">
                 <div className="text-gray-400 text-xs font-mono">
-                  {a.timestamp ? a.timestamp.slice(11, 19) : ''}
+                  {a.timestamp ? a.timestamp.slice(0, 10) : ''}
                 </div>
                 <div className="text-gray-600 text-xs mt-1">score {a.threat_score}</div>
               </div>

@@ -3,18 +3,17 @@ import ThreatBadge from './ThreatBadge'
 const CMD_COLOR = (delta) => {
   if (delta >= 20) return 'text-red-400'
   if (delta >= 10) return 'text-orange-400'
-  if (delta >  0)  return 'text-yellow-300'
+  if (delta > 0) return 'text-yellow-300'
   return 'text-gray-300'
 }
 
 function SessionCard({ session }) {
-  const isActive  = session.active
-  const hasCmds   = session.commands && session.commands.length > 0
+  const isActive = session.active
+  const hasCmds = session.commands && session.commands.length > 0
 
   return (
-    <div className={`rounded-lg border bg-gray-800/60 ${
-      isActive ? 'border-green-700' : 'border-gray-700'
-    }`}>
+    <div className={`rounded-lg border bg-gray-800/60 ${isActive ? 'border-green-700' : 'border-gray-700'
+      }`}>
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700/60">
         <div className="flex items-center gap-2 min-w-0">
@@ -64,18 +63,18 @@ function SessionCard({ session }) {
       {/* Footer */}
       <div className="px-3 py-1.5 border-t border-gray-700/40 flex justify-between text-xs text-gray-600">
         <span>{session.session_id}</span>
-        <span>{session.login_time?.slice(11, 19)}</span>
+        <span>{session.login_time?.slice(0, 10)}</span>
       </div>
     </div>
   )
 }
 
 export default function SessionFeed({ sessions }) {
-  const all    = Object.values(sessions).sort((a, b) =>
+  const all = Object.values(sessions).sort((a, b) =>
     a.login_time < b.login_time ? 1 : -1
   )
   const active = all.filter(s => s.active)
-  const done   = all.filter(s => !s.active)
+  const done = all.filter(s => !s.active)
 
   return (
     <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
@@ -103,7 +102,7 @@ export default function SessionFeed({ sessions }) {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-[560px] overflow-y-auto pr-1">
           {active.map(s => <SessionCard key={s.session_id} session={s} />)}
-          {done.map(s  => <SessionCard key={s.session_id} session={s} />)}
+          {done.map(s => <SessionCard key={s.session_id} session={s} />)}
         </div>
       )}
     </div>

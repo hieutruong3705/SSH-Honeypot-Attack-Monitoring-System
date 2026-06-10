@@ -17,17 +17,25 @@ telegram_session = requests.Session()
 # ==========================================
 # 2. CAC HAM XU LY (GUI TIN & LUU LOG)
 # ==========================================
-def send_telegram_alert(ip, username, password, time_str):
+def send_telegram_alert(ip, username, password, date_str, time_str):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    message = f"🚨 [BAO DONG] HONEYPOT DA SAP!\n\n⏰ Thoi gian: {time_str}\n🌐 IP: {ip}\n👤 Tai khoan: {username}\n🔑 Mat khau: {password}"
+    message = (
+        f"🚨 [BAO DONG] HONEYPOT DA SAP!\n\n"
+        f"📅 Ngay: {date_str}\n"
+        f"⏰ Gio: {time_str}\n"
+        f"🌐 IP: {ip}\n"
+        f"👤 Tai khoan: {username}\n"
+        f"🔑 Mat khau: {password}"
+    )
     try:
         telegram_session.post(url, json={'chat_id': TELEGRAM_CHAT_ID, 'text': message}, timeout=5)
     except Exception:
         pass
 
-def save_log_to_file(ip, username, password, time_str):
+def save_log_to_file(ip, username, password, date_str, time_str):
     with open("hacker_logs.json", "a") as f:
         log_entry = {
+            "Ngay": date_str,
             "ThoiGian": time_str,
             "IP": ip,
             "TaiKhoan": username,
@@ -44,19 +52,26 @@ class FakeSSHServer(paramiko.ServerInterface):
 
     # Ham nay chay khi Hacker nhap mat khau
     def check_auth_password(self, username, password):
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now()
+        date_str = now.strftime("%Y-%m-%d")
+        time_str = now.strftime("%H:%M:%S")
+        timestamp = f"{date_str} {time_str}"
         
         # In canh bao do ruc ra man hinh Ubuntu
-        print(f"\n[{now}] [!] BAO DONG: Ke la mat dang pha khoa!")
+        print(f"\n[{timestamp}] [!] BAO DONG: Ke la mat dang pha khoa!")
         print(f"   => IP        : {self.client_ip}")
         print(f"   => Tai khoan : {username}")
         print(f"   => Mat khau  : {password}")
         
         # Ghi log ra file
-        save_log_to_file(self.client_ip, username, password, now)
+        save_log_to_file(self.client_ip, username, password, date_str, time_str)
         
         # Thue mot "nhan vien" chay ngam gui tin nhan Tele ngay lap tuc
-        threading.Thread(target=send_telegram_alert, args=(self.client_ip, username, password, now), daemon=True).start()
+        threading.Thread(
+            target=send_telegram_alert,
+            args=(self.client_ip, username, password, date_str, time_str),
+            daemon=True
+        ).start()
         
         # Da hacker ra ngoai khong cho vao
         return paramiko.AUTH_FAILED
