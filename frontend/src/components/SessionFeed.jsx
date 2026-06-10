@@ -63,7 +63,7 @@ function SessionCard({ session }) {
       {/* Footer */}
       <div className="px-3 py-1.5 border-t border-gray-700/40 flex justify-between text-xs text-gray-600">
         <span>{session.session_id}</span>
-        <span>{session.login_time?.slice(0, 10)}</span>
+        <span>{session.login_time?.slice(0, 19)}</span>
       </div>
     </div>
   )
