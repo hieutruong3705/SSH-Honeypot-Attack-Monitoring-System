@@ -4,6 +4,7 @@ All handlers return plain strings — no OS calls, no subprocess, no exec.
 """
 from __future__ import annotations
 
+import re
 import shlex
 from typing import TYPE_CHECKING, Callable
 
@@ -15,6 +16,32 @@ from honeypot.virtual_fs import VirtualFS
 _UNAME_A = 'Linux ubuntu-server 5.15.0-91-generic #101-Ubuntu SMP Tue Nov 14 13:30:08 UTC 2023 x86_64 x86_64 x86_64 GNU/Linux'
 
 Handler = Callable[[list[str], 'ShellSession', VirtualFS], str]
+
+_REDIRECT_TOKENS = {'>', '>>', '<', '2>', '2>>', '&>', '>&'}
+_WRAPPER_COMMANDS = {
+    'command', 'builtin', 'env', 'nohup', 'timeout', 'time',
+    'setsid', 'nice', 'ionice', 'stdbuf', 'xargs',
+}
+
+
+def _strip_redirections(parts: list[str]) -> list[str]:
+    cleaned: list[str] = []
+    skip_next = False
+    for part in parts:
+        if skip_next:
+            skip_next = False
+            continue
+        if part in _REDIRECT_TOKENS:
+            skip_next = True
+            continue
+        if re.match(r'^(?:\d?>|&>|<)', part):
+            continue
+        cleaned.append(part)
+    return cleaned
+
+
+def _looks_like_assignment(part: str) -> bool:
+    return bool(re.match(r'^[A-Za-z_][A-Za-z0-9_]*=', part))
 
 
 class CommandRegistry:
@@ -41,11 +68,35 @@ class CommandRegistry:
             parts = shlex.split(cmd)
         except ValueError:
             parts = cmd.split()
+        parts = _strip_redirections(parts)
+        while parts and _looks_like_assignment(parts[0]):
+            parts = parts[1:]
         if not parts:
             return ''
 
         name    = parts[0].lstrip('./')
         args    = parts[1:]
+
+        if name in _WRAPPER_COMMANDS and args:
+            if name == 'env':
+                while args and (args[0].startswith('-') or _looks_like_assignment(args[0])):
+                    args = args[1:]
+            elif name in ('timeout', 'time', 'nice', 'ionice', 'stdbuf') and args and args[0].startswith('-'):
+                while args and args[0].startswith('-'):
+                    args = args[1:]
+                if name == 'timeout' and args:
+                    args = args[1:]
+            if args:
+                return self.handle(' '.join(shlex.quote(a) for a in args), session)
+
+        if name == 'busybox' and args:
+            return self.handle(' '.join(shlex.quote(a) for a in args), session)
+
+        if name == 'sudo' and args:
+            sudo_args = [a for a in args if a not in ('-S', '-n', '-E', '-H')]
+            if sudo_args and session.username == 'root':
+                return self.handle(' '.join(shlex.quote(a) for a in sudo_args), session)
+
         handler = self._handlers.get(name)
         if handler:
             return handler(args, session, self._fs)
@@ -321,6 +372,9 @@ class CommandRegistry:
                 'wget': '/usr/bin/wget', 'curl': '/usr/bin/curl',
                 'nc': '/usr/bin/nc', 'nmap': '/usr/bin/nmap',
                 'cat': '/bin/cat', 'ls': '/bin/ls',
+                'id': '/usr/bin/id', 'whoami': '/usr/bin/whoami',
+                'grep': '/bin/grep', 'find': '/usr/bin/find',
+                'systemctl': '/bin/systemctl', 'service': '/usr/sbin/service',
             }
             return known.get(args[0], '') if args else ''
 
@@ -345,6 +399,101 @@ class CommandRegistry:
             if not fs.exists(path):
                 return f"rm: cannot remove '{real[0]}': No such file or directory"
             return ''
+
+        def _cp(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
+            if len([a for a in args if not a.startswith('-')]) < 2:
+                return 'cp: missing file operand'
+            return ''
+
+        def _mv(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
+            if len([a for a in args if not a.startswith('-')]) < 2:
+                return 'mv: missing file operand'
+            return ''
+
+        def _head_tail(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
+            targets = [a for a in args if not a.startswith('-')]
+            if not targets:
+                return ''
+            path = fs.resolve(s.cwd, targets[-1])
+            content = fs.read(path)
+            if content is None:
+                return f"head: cannot open '{targets[-1]}' for reading: No such file or directory"
+            lines = content.rstrip('\n').splitlines()
+            return '\n'.join(lines[-10:] if 'tail' in targets[0:1] else lines[:10])
+
+        def _wc(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
+            targets = [a for a in args if not a.startswith('-')]
+            if not targets:
+                return '0 0 0'
+            path = fs.resolve(s.cwd, targets[-1])
+            content = fs.read(path)
+            if content is None:
+                return f"wc: {targets[-1]}: No such file or directory"
+            lines = content.splitlines()
+            words = content.split()
+            return f'{len(lines):7d} {len(words):7d} {len(content):7d} {targets[-1]}'
+
+        def _grep(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
+            real = [a for a in args if not a.startswith('-')]
+            if len(real) < 2:
+                return ''
+            pattern, target = real[0], real[-1]
+            content = fs.read(fs.resolve(s.cwd, target))
+            if content is None:
+                return f"grep: {target}: No such file or directory"
+            return '\n'.join(line for line in content.splitlines() if pattern.strip('"\'') in line)
+
+        def _find(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
+            start = args[0] if args and not args[0].startswith('-') else s.cwd
+            path = fs.resolve(s.cwd, start)
+            if not fs.exists(path):
+                return f"find: '{start}': No such file or directory"
+            if path == '/':
+                return '/etc/passwd\n/etc/shadow\n/root/.ssh/id_rsa\n/tmp/tmpfile\n/var/log/auth.log'
+            if fs.is_dir(path):
+                return '\n'.join(path.rstrip('/') + '/' + item for item in fs.listdir(path))
+            return path
+
+        def _who(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
+            return f'{s.username}    pts/0        2026-05-29 17:30 (192.168.1.50)'
+
+        def _w(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
+            return (
+                ' 17:30:00 up 42 days,  1 user,  load average: 0.12, 0.08, 0.05\n'
+                'USER     TTY      FROM             LOGIN@   IDLE   JCPU   PCPU WHAT\n'
+                f'{s.username:<8} pts/0    192.168.1.50     17:30    1.00s  0.01s  0.00s -bash'
+            )
+
+        def _systemctl(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
+            if not args or args[0] in ('status', 'list-units'):
+                return (
+                    'ssh.service loaded active running OpenBSD Secure Shell server\n'
+                    'cron.service loaded active running Regular background program processing daemon\n'
+                    'nginx.service loaded active running A high performance web server'
+                )
+            if args[0] in ('start', 'stop', 'restart', 'enable', 'disable'):
+                return 'Failed to connect to bus: Permission denied'
+            return ''
+
+        def _service(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
+            if not args or '--status-all' in args:
+                return ' [ + ]  cron\n [ + ]  ssh\n [ + ]  nginx\n [ - ]  apache2'
+            return ''
+
+        def _iptables(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
+            if '-L' in args or not args:
+                return (
+                    'Chain INPUT (policy ACCEPT)\n'
+                    'target     prot opt source               destination\n'
+                    'ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:ssh'
+                )
+            return 'iptables v1.8.4: Permission denied (you must be root)'
+
+        def _docker(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
+            return 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?'
+
+        def _uname_like(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
+            return 'Ubuntu 20.04.6 LTS'
 
         def _man(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
             return f'No manual entry for {args[0]}' if args else 'What manual page do you want?'
@@ -387,7 +536,17 @@ class CommandRegistry:
             'python': _python, 'python3': _python,
             'which': _which, 'whereis': _which,
             'mkdir': _mkdir, 'touch': _touch, 'rm': _rm, 'rmdir': _rm,
-            'grep': lambda a,s,f: '', 'find': lambda a,s,f: '',
+            'cp': _cp, 'mv': _mv,
+            'head': _head_tail, 'tail': lambda a,s,f: _head_tail(['__tail__'] + a, s, f),
+            'wc': _wc, 'grep': _grep, 'find': _find,
+            'who': _who, 'users': lambda a,s,f: s.username, 'w': _w,
+            'systemctl': _systemctl, 'service': _service,
+            'iptables': _iptables, 'ufw': lambda a,s,f: 'Status: inactive',
+            'docker': _docker, 'podman': _docker,
+            'lsb_release': _uname_like, 'hostnamectl': lambda a,s,f: 'Static hostname: ubuntu-server\nOperating System: Ubuntu 20.04.6 LTS\nKernel: Linux 5.15.0-91-generic',
+            'kill': lambda a,s,f: '', 'pkill': lambda a,s,f: '',
+            'tar': lambda a,s,f: '', 'gzip': lambda a,s,f: '', 'gunzip': lambda a,s,f: '',
+            'tee': lambda a,s,f: '',
             'base64': lambda a,s,f: '',
             'man': _man, 'help': _help,
             'exit': _exit, 'logout': _exit, 'quit': _exit,

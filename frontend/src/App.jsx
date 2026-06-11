@@ -3,19 +3,41 @@ import LiveFeed    from './components/LiveFeed'
 import Statistics  from './components/Statistics'
 import AttackChart from './components/AttackChart'
 import SessionFeed from './components/SessionFeed'
+import TerminalLog from './components/TerminalLog'
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`
+const MAX_TERMINAL_LINES = 200
+
+const formatClock = (value) => {
+  if (!value) return new Date().toLocaleTimeString('en-GB', { hour12: false })
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T')
+  const date = new Date(normalized)
+  if (Number.isNaN(date.getTime())) return value.slice(11, 19) || value.slice(0, 19)
+  return date.toLocaleTimeString('en-GB', { hour12: false })
+}
+
+const makeLogEntry = (kind, text, timestamp) => ({
+  id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  kind,
+  time: formatClock(timestamp),
+  text,
+})
 
 export default function App() {
   const [attacks,  setAttacks]  = useState([])
   const [stats,    setStats]    = useState(null)
   const [sessions, setSessions] = useState({})   // { [session_id]: sessionObj }
+  const [terminalEntries, setTerminalEntries] = useState([])
   const [connected, setConnected] = useState(false)
   const wsRef           = useRef(null)
   const reconnectTimer  = useRef(null)
 
   const refreshStats = useCallback(() => {
     fetch('/api/stats').then(r => r.json()).then(setStats).catch(() => {})
+  }, [])
+
+  const pushTerminal = useCallback((entry) => {
+    setTerminalEntries(prev => [...prev, entry].slice(-MAX_TERMINAL_LINES))
   }, [])
 
   // ── WebSocket ──────────────────────────────────────────────────────────────
@@ -43,6 +65,11 @@ export default function App() {
 
     if (type === 'attack') {
       setAttacks(prev => [data, ...prev].slice(0, 100))
+      pushTerminal(makeLogEntry(
+        'LOGIN',
+        `${(data.threat_level || 'LOW').padEnd(8)} | ${data.ip || '-'} | ${data.username || '-'}/${data.password || '-'} | score ${data.threat_score ?? 0}`,
+        data.timestamp,
+      ))
       refreshStats()
       return
     }
@@ -52,6 +79,11 @@ export default function App() {
         ...prev,
         [data.session_id]: { ...data, commands: [], active: true },
       }))
+      pushTerminal(makeLogEntry(
+        'START',
+        `${data.ip || '-'} | ${data.username || '-'} | session ${data.session_id || '-'}`,
+        data.login_time,
+      ))
       return
     }
 
@@ -72,6 +104,11 @@ export default function App() {
           },
         }
       })
+      pushTerminal(makeLogEntry(
+        'CMD',
+        `${data.threat_level || 'LOW'} | ${data.ip || '-'} | ${data.username || '-'} | ${data.cmd || ''}`,
+        data.timestamp,
+      ))
       return
     }
 
@@ -87,6 +124,11 @@ export default function App() {
           active: false,
         },
       }))
+      pushTerminal(makeLogEntry(
+        'END',
+        `${data.ip || '-'} | ${data.username || '-'} | session ${data.session_id || '-'} closed after ${data.duration_seconds ?? 0}s`,
+        data.login_time,
+      ))
       refreshStats()
     }
   }
@@ -139,13 +181,16 @@ export default function App() {
         {/* Row 1 — stats */}
         <Statistics stats={stats} />
 
-        {/* Row 2 — attack feed + charts */}
+        {/* Row 2 - terminal log */}
+        <TerminalLog entries={terminalEntries} connected={connected} />
+
+        {/* Row 3 — attack feed + charts */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <LiveFeed attacks={attacks} />
           <AttackChart stats={stats} />
         </div>
 
-        {/* Row 3 — shell sessions */}
+        {/* Row 4 — shell sessions */}
         <SessionFeed sessions={sessions} />
       </main>
     </div>
