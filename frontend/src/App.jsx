@@ -182,9 +182,13 @@ export default function App() {
         <Statistics stats={stats} />
 
         {/* Row 2 — terminal log + live feed */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <TerminalLog entries={terminalEntries} connected={connected} />
-          <LiveFeed attacks={attacks} />
+        <div className="flex flex-col xl:flex-row gap-4">
+          <div className="w-full xl:w-1/2 xl:max-w-[50%]">
+            <TerminalLog entries={terminalEntries} connected={connected} />
+          </div>
+          <div className="w-full xl:w-1/2 xl:max-w-[50%]">
+            <LiveFeed attacks={attacks} />
+          </div>
         </div>
 
         {/* Row 3 — charts */}
