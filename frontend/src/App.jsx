@@ -181,12 +181,14 @@ export default function App() {
         {/* Row 1 — stats */}
         <Statistics stats={stats} />
 
-        {/* Row 2 - terminal log */}
-        <TerminalLog entries={terminalEntries} connected={connected} />
-
-        {/* Row 3 — attack feed + charts */}
+        {/* Row 2 — terminal log + live feed */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <TerminalLog entries={terminalEntries} connected={connected} />
           <LiveFeed attacks={attacks} />
+        </div>
+
+        {/* Row 3 — charts */}
+        <div className="grid grid-cols-1 gap-4">
           <AttackChart stats={stats} />
         </div>
 
