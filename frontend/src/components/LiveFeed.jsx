@@ -41,7 +41,7 @@ export default function LiveFeed({ attacks }) {
             )}
             {attacks.map((a, i) => (
               <tr key={i} className="hover:bg-soft-border/30 transition-colors">
-                <td className="px-5 py-3 text-soft-text text-xs">{a.timestamp.split(' ')[1] || a.timestamp}</td>
+                <td className="px-5 py-3 text-soft-text text-xs">{a.timestamp}</td>
                 <td className="px-5 py-3 font-mono text-soft-textHover text-xs flex items-center gap-2">
                   <span>{a.ip}</span>
                   {a.proxy_type && (
