@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  honeypot:
+    build: .
+    container_name: honeypot_app
+    restart: always
+    ports:
+      # Expose Dashboard to specific IP (e.g., VPN IP) or localhost
+      # WARNING: If you want dashboard to be accessible from anywhere, use "8000:8000"
+      # But for security, bind to 127.0.0.1 and use SSH Tunneling, or bind to a VPN interface.
+      - "8000:8000" 
+      
+      # Expose Honeypot SSH to the public internet
+      - "0.0.0.0:2222:2222"
+    volumes:
+      # Persistent database so data is not lost on restart
+      - ./honeypot.db:/app/honeypot.db
+    environment:
+      - PYTHONUNBUFFERED=1

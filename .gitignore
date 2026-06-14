@@ -1,0 +1,93 @@
+# =========================
+# GENERAL
+# =========================
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.temp
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+
+# =========================
+# REACT (FRONTEND)
+# =========================
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# Environment variables
+.env
+.env.local
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.production.local
+
+# Cache
+frontend/.vite/
+frontend/.cache/
+frontend/.eslintcache
+
+# Testing
+frontend/coverage/
+
+# =========================
+# FASTAPI (BACKEND)
+# =========================
+
+# Python cache
+backend/__pycache__/
+backend/*.py[cod]
+backend/*$py.class
+
+# Virtual environment
+backend/venv/
+backend/.venv/
+backend/env/
+
+# Environment variables
+backend/.env
+
+# Logs
+backend/*.log
+
+# Database
+backend/*.db
+backend/*.sqlite3
+
+# Pytest cache
+backend/.pytest_cache/
+
+# Type checker
+backend/.mypy_cache/
+
+# Ruff / lint cache
+backend/.ruff_cache/
+
+# Coverage
+backend/.coverage
+backend/htmlcov/
+
+# Build files
+backend/build/
+backend/dist/
+backend/*.egg-info/
+
+# =========================
+# DOCKER
+# =========================
+docker-compose.override.yml
+
+# =========================
+# OS FILES
+# =========================
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc
+honeypot.db
+.env
