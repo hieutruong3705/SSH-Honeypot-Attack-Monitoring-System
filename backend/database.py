@@ -34,7 +34,9 @@ def init_db() -> None:
                 password      TEXT    NOT NULL,
                 timestamp     TEXT    NOT NULL,
                 threat_score  INTEGER DEFAULT 0,
-                threat_level  TEXT    DEFAULT 'LOW'
+                threat_level  TEXT    DEFAULT 'LOW',
+                fingerprint   TEXT,
+                client_tool   TEXT
             )
         ''')
         conn.execute('''
@@ -48,7 +50,9 @@ def init_db() -> None:
                 threat_score     INTEGER DEFAULT 0,
                 threat_level     TEXT    DEFAULT 'LOW',
                 duration_seconds INTEGER DEFAULT 0,
-                command_count    INTEGER DEFAULT 0
+                command_count    INTEGER DEFAULT 0,
+                fingerprint      TEXT,
+                client_tool      TEXT
             )
         ''')
         conn.execute('''
@@ -146,13 +150,14 @@ def get_map_data() -> list[dict]:
 # ── Attacks ───────────────────────────────────────────────────────────────────
 
 def save_attack(ip: str, username: str, password: str,
-                timestamp: str, threat_score: int, threat_level: str) -> None:
+                timestamp: str, threat_score: int, threat_level: str,
+                fingerprint: str = None, client_tool: str = None) -> None:
     with _lock:
         with _get_conn() as conn:
             conn.execute(
-                'INSERT INTO attacks (ip, username, password, timestamp, threat_score, threat_level)'
-                ' VALUES (?, ?, ?, ?, ?, ?)',
-                (ip, username, password, timestamp, threat_score, threat_level),
+                'INSERT INTO attacks (ip, username, password, timestamp, threat_score, threat_level, fingerprint, client_tool)'
+                ' VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                (ip, username, password, timestamp, threat_score, threat_level, fingerprint, client_tool),
             )
 
 
@@ -216,13 +221,14 @@ def save_session(data: dict) -> None:
             conn.execute('''
                 INSERT OR REPLACE INTO sessions
                   (session_id, ip, username, password, login_time, end_time,
-                   threat_score, threat_level, duration_seconds, command_count)
-                VALUES (?,?,?,?,?,?,?,?,?,?)
+                   threat_score, threat_level, duration_seconds, command_count, fingerprint, client_tool)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
             ''', (
                 data['session_id'], data['ip'], data['username'], data['password'],
                 data['login_time'], data.get('end_time', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
                 data['threat_score'], data['threat_level'],
                 data.get('duration_seconds', 0), data.get('command_count', 0),
+                data.get('fingerprint'), data.get('client_tool')
             ))
 
 

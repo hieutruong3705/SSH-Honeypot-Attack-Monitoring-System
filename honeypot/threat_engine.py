@@ -30,11 +30,30 @@ def _record(ip: str) -> None:
         _attempt_times[ip].append(datetime.now().timestamp())
 
 
-def calculate_login_threat(ip: str, username: str, password: str) -> tuple[int, str]:
+def calculate_login_threat(ip: str, username: str, password: str, fingerprint: str = None) -> tuple[int, str, str]:
     recent = _count_recent(ip, seconds=60)
     _record(ip)
 
     score = 1  # base: failed / attempted login
+    client_tool = None
+
+    if fingerprint:
+        fp_lower = fingerprint.lower()
+        if 'libssh' in fp_lower or 'go' in fp_lower or 'nmap' in fp_lower or 'zmap' in fp_lower:
+            client_tool = 'SCANNER'
+            score += 85  # Instant critical
+        elif 'paramiko' in fp_lower or 'python' in fp_lower:
+            client_tool = 'SCRIPT: PYTHON'
+            score += 85  # Instant critical
+        elif 'putty' in fp_lower:
+            client_tool = 'PUTTY'
+        elif 'openssh' in fp_lower:
+            client_tool = 'OPENSSH'
+        else:
+            # If it's a very weak cipher suite or unknown
+            if '3des-cbc' in fp_lower or 'ssh-rsa' in fp_lower:
+                client_tool = 'BOTNET/IOT'
+                score += 85
 
     if username.lower() in SENSITIVE_USERNAMES:
         score += 5
@@ -45,7 +64,7 @@ def calculate_login_threat(ip: str, username: str, password: str) -> tuple[int, 
     if recent > 10:  # high-frequency
         score += 20
 
-    return score, _level(score)
+    return score, _level(score), client_tool
 
 
 # ── Command-time scoring ──────────────────────────────────────────────────────

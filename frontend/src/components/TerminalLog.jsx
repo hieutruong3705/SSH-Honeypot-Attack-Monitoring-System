@@ -36,7 +36,7 @@ export default function TerminalLog({ entries, connected }) {
             <div key={e.id} className="mb-1 leading-relaxed break-all hover:bg-white/5 px-1 rounded transition-colors">
               <span className="text-soft-text/60 mr-3">[{e.time}]</span>
               <span className={`font-semibold mr-2 ${color}`}>[{e.kind}]</span>
-              <span className="text-soft-text">{e.text}</span>
+              <span className="text-gray-300">{e.text}</span>
             </div>
           )
         })}

@@ -22,11 +22,20 @@ function SessionCard({ session }) {
           
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
-              <span className="text-soft-textHover font-medium text-sm flex items-center gap-2">
+              <span className="text-soft-textHover font-medium text-sm flex flex-wrap items-center gap-2">
                 {session.ip}
                 {session.proxy_type && (
                   <span className="bg-red-500 text-white text-[9px] px-1 rounded font-bold tracking-wider">
                     [{session.proxy_type.toUpperCase()}]
+                  </span>
+                )}
+                {session.client_tool && (
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold tracking-wider ${
+                    session.client_tool.includes('BOTNET') || session.client_tool.includes('SCANNER') 
+                    ? 'bg-red-900/50 text-red-400 border border-red-500/50' 
+                    : 'bg-purple-900/50 text-purple-400 border border-purple-500/50'
+                  }`}>
+                    {session.client_tool}
                   </span>
                 )}
               </span>
@@ -72,8 +81,15 @@ function SessionCard({ session }) {
               </div>
             )}
           </div>
-          <div className="px-4 py-2 border-t border-soft-border flex justify-between text-[10px] text-soft-text bg-soft-bg">
-            <span>ID: {session.session_id}</span>
+          <div className="px-4 py-2 border-t border-soft-border flex justify-between items-center text-[10px] text-soft-text bg-soft-bg">
+            <div className="flex gap-4">
+              <span>ID: {session.session_id}</span>
+              {session.fingerprint && (
+                <span className="text-purple-400/70" title="SSH Fingerprint">
+                  FP: {session.fingerprint}
+                </span>
+              )}
+            </div>
             <span>{session.login_time?.slice(0, 19)}</span>
           </div>
         </div>

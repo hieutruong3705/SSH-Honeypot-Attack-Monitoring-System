@@ -34,7 +34,7 @@ export default function AttackChart({ stats }) {
               <BarChart data={hourData} margin={{ top: 10, right: 0, bottom: 0, left: -25 }}>
                 <XAxis dataKey="hour" stroke="#3f3f46" tick={{ fill: '#a1a1aa', fontSize: 11 }} tickFormatter={h => `${h}h`} axisLine={false} tickLine={false} />
                 <YAxis stroke="#3f3f46" tick={{ fill: '#a1a1aa', fontSize: 11 }} allowDecimals={false} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={TooltipStyle} cursor={{ fill: 'rgba(255, 255, 255, 0.02)' }} />
+                <Tooltip contentStyle={TooltipStyle} itemStyle={{ color: '#e5e7eb' }} cursor={{ fill: 'rgba(255, 255, 255, 0.02)' }} />
                 <Bar dataKey="cnt" name="Attacks" radius={[2, 2, 0, 0]}>
                   {hourData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.cnt > 50 ? '#ef4444' : '#3f3f46'} />

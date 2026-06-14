@@ -35,20 +35,32 @@ def _handle_client(sock: socket.socket, ip: str,
         # ── Auth ──────────────────────────────────────────────────────────────
 
         def check_auth_password(self, username: str, password: str) -> int:
+            remote_ver = transport.remote_version or "Unknown"
+            cipher = getattr(transport, 'remote_cipher', 'N/A')
+            mac = getattr(transport, 'remote_mac', 'N/A')
+            kex = getattr(transport, 'kex_engine', None)
+            kex_name = kex.name if kex else 'N/A'
+            comp = getattr(transport, 'remote_compression', 'N/A')
+            
+            fingerprint = f"{remote_ver} | {kex_name} | {cipher} | {mac} | {comp}"
+            
             now   = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            score, level = calculate_login_threat(ip, username, password)
-            save_attack(ip, username, password, now, score, level)
+            score, level, tool = calculate_login_threat(ip, username, password, fingerprint)
+            save_attack(ip, username, password, now, score, level, fingerprint, tool)
 
             self.session = ShellSession.new(ip, username, password, score, level)
+            self.session.fingerprint = fingerprint
+            self.session.client_tool = tool
 
             attack = {
                 'ip': ip, 'username': username, 'password': password,
                 'timestamp': now, 'threat_score': score, 'threat_level': level,
+                'fingerprint': fingerprint, 'client_tool': tool
             }
             bus.emit_attack(attack)
 
             threading.Thread(target=send_login_alert, args=(attack,), daemon=True).start()
-            print(f'[{now}] LOGIN  {level:8s} | {ip:15s} | {username}/{password}')
+            print(f'[{now}] LOGIN  {level:8s} | {ip:15s} | {username}/{password} | {tool}')
             return paramiko.AUTH_SUCCESSFUL
 
         def check_auth_publickey(self, username, key):

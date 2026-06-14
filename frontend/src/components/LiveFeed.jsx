@@ -42,11 +42,20 @@ export default function LiveFeed({ attacks }) {
             {attacks.map((a, i) => (
               <tr key={i} className="hover:bg-soft-border/30 transition-colors">
                 <td className="px-5 py-3 text-soft-text text-xs">{a.timestamp}</td>
-                <td className="px-5 py-3 font-mono text-soft-textHover text-xs flex items-center gap-2">
+                <td className="px-5 py-3 font-mono text-soft-textHover text-xs flex flex-wrap items-center gap-2">
                   <span>{a.ip}</span>
                   {a.proxy_type && (
                     <span className="bg-red-500 text-white text-[9px] px-1 rounded font-bold tracking-wider">
                       [{a.proxy_type.toUpperCase()}]
+                    </span>
+                  )}
+                  {a.client_tool && (
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold tracking-wider ${
+                      a.client_tool.includes('BOTNET') || a.client_tool.includes('SCANNER') 
+                      ? 'bg-red-900/50 text-red-400 border border-red-500/50' 
+                      : 'bg-purple-900/50 text-purple-400 border border-purple-500/50'
+                    }`}>
+                      {a.client_tool}
                     </span>
                   )}
                 </td>
