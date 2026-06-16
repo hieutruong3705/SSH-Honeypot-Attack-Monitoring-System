@@ -16,7 +16,6 @@ from backend.database import (
     get_or_fetch_ip_location, get_map_data,
     get_malware_captures
 )
-from backend.attack_simulator import run_scenario, get_status as sim_status
 from backend.system_audit import run_audit, get_audit_history
 
 attack_queue: queue.Queue = queue.Queue()
@@ -137,20 +136,6 @@ def api_session_commands(session_id: str):
 def api_map():
     return get_map_data()
 
-
-# ── Attack Simulator ─────────────────────────────────────────────────────────
-
-@app.post('/api/simulate/{scenario}')
-async def api_simulate(scenario: str):
-    started = run_scenario(scenario)
-    if not started:
-        return {'status': 'error', 'message': f'Unknown scenario or already running: {scenario}'}
-    return {'status': 'started', 'scenario': scenario}
-
-
-@app.get('/api/simulate/{scenario}/status')
-async def api_simulate_status(scenario: str):
-    return sim_status(scenario)
 
 
 # ── System Audit ─────────────────────────────────────────────────────────────
