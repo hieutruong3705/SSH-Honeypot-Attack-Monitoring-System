@@ -13,8 +13,11 @@ from backend.database import (
     init_db, get_recent_attacks, get_stats,
     get_recent_sessions, get_session_commands,
     save_session, save_commands,
-    get_or_fetch_ip_location, get_map_data
+    get_or_fetch_ip_location, get_map_data,
+    get_malware_captures
 )
+from backend.attack_simulator import run_scenario, get_status as sim_status
+from backend.system_audit import run_audit, get_audit_history
 
 attack_queue: queue.Queue = queue.Queue()
 
@@ -133,6 +136,41 @@ def api_session_commands(session_id: str):
 @app.get('/api/map')
 def api_map():
     return get_map_data()
+
+
+# ── Attack Simulator ─────────────────────────────────────────────────────────
+
+@app.post('/api/simulate/{scenario}')
+async def api_simulate(scenario: str):
+    started = run_scenario(scenario)
+    if not started:
+        return {'status': 'error', 'message': f'Unknown scenario or already running: {scenario}'}
+    return {'status': 'started', 'scenario': scenario}
+
+
+@app.get('/api/simulate/{scenario}/status')
+async def api_simulate_status(scenario: str):
+    return sim_status(scenario)
+
+
+# ── System Audit ─────────────────────────────────────────────────────────────
+
+@app.get('/api/audit')
+async def api_audit():
+    result = await asyncio.to_thread(run_audit)
+    return result
+
+
+@app.get('/api/audit/history')
+def api_audit_history():
+    return get_audit_history(10)
+
+
+# ── Malware Captures ──────────────────────────────────────────────────────────
+
+@app.get('/api/malware')
+def api_malware():
+    return get_malware_captures(20)
 
 
 # ── Serve built frontend (production) ────────────────────────────────────────

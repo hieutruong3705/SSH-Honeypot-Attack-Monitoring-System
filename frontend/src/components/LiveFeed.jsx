@@ -52,8 +52,8 @@ export default function LiveFeed({ attacks }) {
                   {a.client_tool && (
                     <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold tracking-wider ${
                       a.client_tool.includes('BOTNET') || a.client_tool.includes('SCANNER') 
-                      ? 'bg-red-900/50 text-red-400 border border-red-500/50' 
-                      : 'bg-purple-900/50 text-purple-400 border border-purple-500/50'
+                      ? 'bg-red-500/80 text-white' 
+                      : 'bg-purple-500/80 text-white'
                     }`}>
                       {a.client_tool}
                     </span>

@@ -75,6 +75,32 @@ def init_db() -> None:
                 proxy_type TEXT
             )
         ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS malware_captures (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                url         TEXT    NOT NULL,
+                filename    TEXT,
+                sha256      TEXT,
+                file_size   INTEGER DEFAULT 0,
+                vt_malicious INTEGER DEFAULT -1,
+                vt_total     INTEGER DEFAULT 0,
+                status      TEXT    DEFAULT 'DOWNLOADING',
+                session_ip  TEXT,
+                session_user TEXT,
+                timestamp   TEXT    NOT NULL
+            )
+        ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS audit_history (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                score       INTEGER,
+                max_score   INTEGER,
+                percentage  INTEGER,
+                grade       TEXT,
+                checks_json TEXT,
+                timestamp   TEXT    NOT NULL
+            )
+        ''')
 
 def get_or_fetch_ip_location(ip: str):
     # Ignore local/private IPs
@@ -268,5 +294,28 @@ def get_session_commands(session_id: str) -> list[dict]:
         rows = conn.execute(
             'SELECT command, timestamp, score_delta FROM commands WHERE session_id = ? ORDER BY id',
             (session_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+# ── Malware Captures ─────────────────────────────────────────────────────────
+
+def save_malware_capture(url: str, filename: str, sha256: str, file_size: int,
+                        vt_malicious: int, vt_total: int, status: str,
+                        session_ip: str, session_user: str) -> None:
+    with _lock:
+        with _get_conn() as conn:
+            conn.execute(
+                'INSERT INTO malware_captures (url, filename, sha256, file_size, vt_malicious, vt_total, status, session_ip, session_user, timestamp)'
+                ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                (url, filename, sha256, file_size, vt_malicious, vt_total, status,
+                 session_ip, session_user, datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+            )
+
+
+def get_malware_captures(limit: int = 20) -> list[dict]:
+    with _get_conn() as conn:
+        rows = conn.execute(
+            'SELECT * FROM malware_captures ORDER BY id DESC LIMIT ?', (limit,)
         ).fetchall()
         return [dict(r) for r in rows]

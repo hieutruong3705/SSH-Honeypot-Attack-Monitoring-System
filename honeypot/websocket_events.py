@@ -33,7 +33,9 @@ class EventBus:
 
     # ── Per-command events ────────────────────────────────────────────────────
 
-    def emit_command(self, session: 'ShellSession', cmd: str, score_delta: int) -> None:
+    def emit_command(self, session: 'ShellSession', cmd: str, score_delta: int,
+                     mitre_id: str = None, technique: str = None,
+                     tactic: str = None) -> None:
         last = session.commands[-1] if session.commands else None
         self._q.put({
             'type': 'session_command',
@@ -46,5 +48,8 @@ class EventBus:
                 'threat_score':session.threat_score,
                 'threat_level':session.threat_level,
                 'timestamp':   last.timestamp if last else '',
+                'mitre_id':    mitre_id,
+                'technique':   technique,
+                'tactic':      tactic,
             },
         })

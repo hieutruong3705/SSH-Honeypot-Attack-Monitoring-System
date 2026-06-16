@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Server, Activity, TerminalSquare } from 'lucide-react'
-import LiveFeed    from './components/LiveFeed'
-import Statistics  from './components/Statistics'
-import AttackChart from './components/AttackChart'
-import SessionFeed from './components/SessionFeed'
-import TerminalLog from './components/TerminalLog'
-import AttackMap   from './components/AttackMap'
+import LiveFeed       from './components/LiveFeed'
+import Statistics     from './components/Statistics'
+import AttackChart    from './components/AttackChart'
+import SessionFeed    from './components/SessionFeed'
+import TerminalLog    from './components/TerminalLog'
+import AttackMap      from './components/AttackMap'
+import AttackSimulator  from './components/AttackSimulator'
+import SystemAudit     from './components/SystemAudit'
+import MalwareCaptures from './components/MalwareCaptures'
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`
 const MAX_TERMINAL_LINES = 200
@@ -95,7 +98,8 @@ export default function App() {
             threat_level: data.threat_level,
             commands: [
               ...s.commands,
-              { cmd: data.cmd, score_delta: data.score_delta, timestamp: data.timestamp },
+              { cmd: data.cmd, score_delta: data.score_delta, timestamp: data.timestamp,
+                mitre_id: data.mitre_id, technique: data.technique },
             ],
           },
         }
@@ -179,6 +183,18 @@ export default function App() {
           >
             System Log
           </button>
+          <button 
+            onClick={() => setActiveTab('simulate')}
+            className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'simulate' ? 'bg-soft-border text-soft-textHover' : 'hover:text-soft-textHover'}`}
+          >
+            Simulate
+          </button>
+          <button 
+            onClick={() => setActiveTab('audit')}
+            className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'audit' ? 'bg-soft-border text-soft-textHover' : 'hover:text-soft-textHover'}`}
+          >
+            Audit
+          </button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -202,6 +218,7 @@ export default function App() {
                 <AttackChart stats={stats} />
               </div>
             </div>
+            <MalwareCaptures />
           </div>
         )}
 
@@ -218,6 +235,18 @@ export default function App() {
         {activeTab === 'terminal' && (
           <div className="animate-in fade-in duration-300 h-[70vh]">
             <TerminalLog entries={terminalEntries} connected={connected} />
+          </div>
+        )}
+
+        {activeTab === 'simulate' && (
+          <div className="animate-in fade-in duration-300">
+            <AttackSimulator />
+          </div>
+        )}
+
+        {activeTab === 'audit' && (
+          <div className="animate-in fade-in duration-300">
+            <SystemAudit />
           </div>
         )}
 
