@@ -7,7 +7,6 @@ import SessionFeed    from './components/SessionFeed'
 import TerminalLog    from './components/TerminalLog'
 import AttackMap      from './components/AttackMap'
 import AttackSimulator  from './components/AttackSimulator'
-import SystemAudit     from './components/SystemAudit'
 import MalwareCaptures from './components/MalwareCaptures'
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`
@@ -189,12 +188,6 @@ export default function App() {
           >
             Simulate
           </button>
-          <button 
-            onClick={() => setActiveTab('audit')}
-            className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'audit' ? 'bg-soft-border text-soft-textHover' : 'hover:text-soft-textHover'}`}
-          >
-            Audit
-          </button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -244,11 +237,6 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === 'audit' && (
-          <div className="animate-in fade-in duration-300">
-            <SystemAudit />
-          </div>
-        )}
 
       </main>
     </div>
