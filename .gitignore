@@ -16,7 +16,6 @@ Thumbs.db
 # REACT (FRONTEND)
 # =========================
 frontend/node_modules/
-frontend/dist/
 frontend/build/
 
 # Environment variables
