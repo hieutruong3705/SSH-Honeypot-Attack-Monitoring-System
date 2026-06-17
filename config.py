@@ -13,9 +13,7 @@ def _load_env_file(path: str = ".env") -> None:
             continue
 
         key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        os.environ.setdefault(key, value)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
 def _get_int(name: str, default: int) -> int:
@@ -30,8 +28,10 @@ def _get_int(name: str, default: int) -> int:
 
 _load_env_file()
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", os.getenv("TELEGRAM_TOKEN", ""))
+TELEGRAM_TOKEN = TELEGRAM_BOT_TOKEN
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+VIRUSTOTAL_API_KEY = os.getenv("VIRUSTOTAL_API_KEY", "")
 
 HONEYPOT_HOST = os.getenv("HONEYPOT_HOST", "0.0.0.0")
 HONEYPOT_PORT = _get_int("HONEYPOT_PORT", 2222)

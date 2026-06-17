@@ -1,6 +1,6 @@
-"""
+﻿"""
 Extensible command registry for the fake shell.
-All handlers return plain strings — no OS calls, no subprocess, no exec.
+All handlers return plain strings â€” no OS calls, no subprocess, no exec.
 """
 from __future__ import annotations
 
@@ -12,6 +12,8 @@ if TYPE_CHECKING:
     from honeypot.fake_shell import ShellSession
 
 from honeypot.virtual_fs import VirtualFS
+from honeypot.websocket_events import EventBus
+from backend.malware_catcher import analyze_url_async
 
 _UNAME_A = 'Linux ubuntu-server 5.15.0-91-generic #101-Ubuntu SMP Tue Nov 14 13:30:08 UTC 2023 x86_64 x86_64 x86_64 GNU/Linux'
 
@@ -45,12 +47,13 @@ def _looks_like_assignment(part: str) -> bool:
 
 
 class CommandRegistry:
-    def __init__(self, fs: VirtualFS) -> None:
+    def __init__(self, fs: VirtualFS, bus: EventBus) -> None:
         self._fs: VirtualFS = fs
+        self._bus: EventBus = bus
         self._handlers: dict[str, Handler] = {}
         self._register_defaults()
 
-    # ── Public API ────────────────────────────────────────────────────────────
+    # â”€â”€ Public API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def register(self, *names: str) -> Callable:
         """Decorator to add a handler for one or more command names."""
@@ -102,16 +105,17 @@ class CommandRegistry:
             return handler(args, session, self._fs)
         return f'-bash: {parts[0]}: command not found'
 
-    # ── Default command implementations ──────────────────────────────────────
+    # â”€â”€ Default command implementations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _register_defaults(self) -> None:
         h = self._handlers
         fs = self._fs
+        bus = self._bus
 
-        # ── filesystem ────────────────────────────────────────────────────────
+        # â”€â”€ filesystem â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         def _ls(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
-            # Tách riêng flag (như -l, -a) và tên thư mục
+            # TÃ¡ch riÃªng flag (nhÆ° -l, -a) vÃ  tÃªn thÆ° má»¥c
             flags = [a for a in args if a.startswith('-')]
             non_flags = [a for a in args if not a.startswith('-')]
             path = fs.resolve(s.cwd, non_flags[-1]) if non_flags else s.cwd
@@ -125,16 +129,16 @@ class CommandRegistry:
             if not items:
                 return ''
 
-            # Kiểm tra xem hacker có dùng cờ '-l' (hoặc gọi qua lệnh ll) không
+            # Kiá»ƒm tra xem hacker cÃ³ dÃ¹ng cá» '-l' (hoáº·c gá»i qua lá»‡nh ll) khÃ´ng
             is_detailed = any('l' in flag for flag in flags)
 
             if is_detailed:
-                # Trả về danh sách DỌC chi tiết (Fake permission, size, date)
+                # Tráº£ vá» danh sÃ¡ch Dá»ŒC chi tiáº¿t (Fake permission, size, date)
                 parts = ["total 12"]
-                # Thêm thư mục hiện tại (.) và thư mục cha (..) cho giống thật
+                # ThÃªm thÆ° má»¥c hiá»‡n táº¡i (.) vÃ  thÆ° má»¥c cha (..) cho giá»‘ng tháº­t
                 parts.append("drwxr-xr-x 1 root root 4096 May 29 17:30 .")
                 parts.append("drwxr-xr-x 1 root root 4096 May 29 17:00 ..")
-                
+
                 for item in items:
                     child = (path.rstrip('/') + '/' + item)
                     if fs.is_dir(child):
@@ -143,7 +147,7 @@ class CommandRegistry:
                         parts.append(f"-rw-r--r-- 1 root root 1024 May 29 17:30 {item}")
                 return '\n'.join(parts)
             else:
-                # Trả về danh sách NGANG bình thường
+                # Tráº£ vá» danh sÃ¡ch NGANG bÃ¬nh thÆ°á»ng
                 parts = []
                 for item in items:
                     child = (path.rstrip('/') + '/' + item)
@@ -192,7 +196,7 @@ class CommandRegistry:
                 return f'{args[0]}: {t}'
             return f'{args[0]}: ERROR: No such file or directory'
 
-        # ── system info ───────────────────────────────────────────────────────
+        # â”€â”€ system info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         def _uname(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
             if '-a' in args: return _UNAME_A
@@ -268,7 +272,7 @@ class CommandRegistry:
         def _history(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
             return '\n'.join(f'  {i+1:4d}  {c}' for i, c in enumerate(s.command_history))
 
-        # ── network / discovery ────────────────────────────────────────────────
+        # â”€â”€ network / discovery â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         def _nmap(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
             return (
@@ -281,6 +285,10 @@ class CommandRegistry:
             url = next((a for a in args if not a.startswith('-')), None)
             if not url:
                 return 'wget: missing URL'
+
+            # PhÃ¢n tÃ­ch mÃ£ Ä‘á»™c
+            analyze_url_async(url, s, bus)
+
             host = url.split('/')[2] if '/' in url else url
             return (
                 f'--2026-05-29 17:31:00--  {url}\n'
@@ -292,6 +300,10 @@ class CommandRegistry:
             url = next((a for a in args if not a.startswith('-')), None)
             if not url:
                 return 'curl: no URL specified!'
+
+            # PhÃ¢n tÃ­ch mÃ£ Ä‘á»™c
+            analyze_url_async(url, s, bus)
+
             host = url.split('/')[2] if url.count('/') >= 2 else url
             return f'curl: (6) Could not resolve host: {host}'
 
@@ -304,7 +316,7 @@ class CommandRegistry:
         def _scp(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
             return 'ssh: connect to host ... port 22: Connection refused'
 
-        # ── privilege / user management ────────────────────────────────────────
+        # â”€â”€ privilege / user management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         def _sudo(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
             if not args:
@@ -332,7 +344,7 @@ class CommandRegistry:
                 'wtmp begins Mon Apr 15 09:00:00 2024'
             )
 
-        # ── package managers ──────────────────────────────────────────────────
+        # â”€â”€ package managers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         def _apt(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
             if not args:
@@ -344,7 +356,7 @@ class CommandRegistry:
                 return 'E: Could not open lock file /var/lib/dpkg/lock - open (13: Permission denied)'
             return ''
 
-        # ── misc ──────────────────────────────────────────────────────────────
+        # â”€â”€ misc â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         def _chmod(args: list[str], s: 'ShellSession', fs: VirtualFS) -> str:
             if len(args) < 2:
@@ -506,7 +518,7 @@ class CommandRegistry:
                 '           nmap  nc  ssh  scp  sudo  passwd  chmod  crontab  exit'
             )
 
-        # ── register all ──────────────────────────────────────────────────────
+        # â”€â”€ register all â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         h.update({
             'ls': _ls, 'll': lambda a,s,f: _ls(['-la']+a,s,f), 'la': lambda a,s,f: _ls(['-a']+a,s,f),

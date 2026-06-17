@@ -1,18 +1,36 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  background-color: #030712;
+@layer base {
+  body {
+    @apply bg-soft-bg text-slate-600 font-sans antialiased;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-soft-card border border-soft-border rounded-lg shadow-sm;
+  }
+
+  .header-nav {
+    @apply bg-soft-bg/80 backdrop-blur-sm border-b border-soft-border sticky top-0 z-50;
+  }
 }
 
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
-  background: #111827;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #374151;
-  border-radius: 3px;
+  background: #bae6fd;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #7dd3fc;
 }

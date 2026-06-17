@@ -1,8 +1,8 @@
-"""
+﻿"""
 SSH honeypot server.
 
 Accepts all password logins, records the attempt, then drops the attacker
-into a FakeShell — an emulated Bash session that executes nothing real.
+into a FakeShell â€” an emulated Bash session that executes nothing real.
 """
 from __future__ import annotations
 
@@ -32,23 +32,35 @@ def _handle_client(sock: socket.socket, ip: str,
             self.session: ShellSession | None = None
             self._shell_ready = threading.Event()
 
-        # ── Auth ──────────────────────────────────────────────────────────────
+        # â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         def check_auth_password(self, username: str, password: str) -> int:
+            remote_ver = transport.remote_version or "Unknown"
+            cipher = getattr(transport, 'remote_cipher', 'N/A')
+            mac = getattr(transport, 'remote_mac', 'N/A')
+            kex = getattr(transport, 'kex_engine', None)
+            kex_name = kex.name if kex else 'N/A'
+            comp = getattr(transport, 'remote_compression', 'N/A')
+
+            fingerprint = f"{remote_ver} | {kex_name} | {cipher} | {mac} | {comp}"
+
             now   = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            score, level = calculate_login_threat(ip, username, password)
-            save_attack(ip, username, password, now, score, level)
+            score, level, tool = calculate_login_threat(ip, username, password, fingerprint)
+            save_attack(ip, username, password, now, score, level, fingerprint, tool)
 
             self.session = ShellSession.new(ip, username, password, score, level)
+            self.session.fingerprint = fingerprint
+            self.session.client_tool = tool
 
             attack = {
                 'ip': ip, 'username': username, 'password': password,
                 'timestamp': now, 'threat_score': score, 'threat_level': level,
+                'fingerprint': fingerprint, 'client_tool': tool
             }
             bus.emit_attack(attack)
 
             threading.Thread(target=send_login_alert, args=(attack,), daemon=True).start()
-            print(f'[{now}] LOGIN  {level:8s} | {ip:15s} | {username}/{password}')
+            print(f'[{now}] LOGIN  {level:8s} | {ip:15s} | {username}/{password} | {tool}')
             return paramiko.AUTH_SUCCESSFUL
 
         def check_auth_publickey(self, username, key):
@@ -57,7 +69,7 @@ def _handle_client(sock: socket.socket, ip: str,
         def get_allowed_auths(self, username: str) -> str:
             return 'password'
 
-        # ── Channel ───────────────────────────────────────────────────────────
+        # â”€â”€ Channel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         def check_channel_request(self, kind: str, chanid: int) -> int:
             if kind == 'session':

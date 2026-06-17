@@ -1,5 +1,7 @@
 import asyncio
+import os
 import queue
+import sys
 from contextlib import asynccontextmanager
 from typing import List
 
@@ -7,18 +9,22 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from backend.database import (
-    init_db, get_recent_attacks, get_stats,
-    get_recent_sessions, get_session_commands,
-    save_session, save_commands,
+    get_map_data,
+    get_malware_captures,
+    get_recent_attacks,
+    get_recent_sessions,
+    get_session_commands,
+    get_or_fetch_ip_location,
+    get_stats,
+    init_db,
+    save_commands,
+    save_session,
 )
 
 attack_queue: queue.Queue = queue.Queue()
 
-
-# ── WebSocket connection manager ──────────────────────────────────────────────
 
 class ConnectionManager:
     def __init__(self) -> None:
@@ -46,18 +52,19 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-# ── Queue processor — drains honeypot events into WebSocket ──────────────────
-
 async def _process_queue() -> None:
     while True:
         try:
             event = attack_queue.get_nowait()
             event_type = event.get('type')
 
-            # Always broadcast to dashboard
             await manager.broadcast(event)
 
-            # Persist completed sessions to DB
+            if event_type in ('attack', 'session_start'):
+                ip = event['data'].get('ip')
+                if ip:
+                    asyncio.create_task(asyncio.to_thread(get_or_fetch_ip_location, ip))
+
             if event_type == 'session_end':
                 data = event['data']
                 save_session(data)
@@ -68,8 +75,6 @@ async def _process_queue() -> None:
             pass
         await asyncio.sleep(0.1)
 
-
-# ── App lifecycle ─────────────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -89,8 +94,6 @@ app.add_middleware(
 )
 
 
-# ── WebSocket endpoint ────────────────────────────────────────────────────────
-
 @app.websocket('/ws')
 async def ws_endpoint(websocket: WebSocket) -> None:
     await manager.connect(websocket)
@@ -100,8 +103,6 @@ async def ws_endpoint(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
-
-# ── REST endpoints ────────────────────────────────────────────────────────────
 
 @app.get('/api/attacks')
 def api_attacks():
@@ -123,7 +124,15 @@ def api_session_commands(session_id: str):
     return get_session_commands(session_id)
 
 
-# ── Serve built frontend (production) ────────────────────────────────────────
+@app.get('/api/map')
+def api_map():
+    return get_map_data()
+
+
+@app.get('/api/malware')
+def api_malware():
+    return get_malware_captures(20)
+
 
 _dist = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'frontend', 'dist')
 if os.path.isdir(_dist):

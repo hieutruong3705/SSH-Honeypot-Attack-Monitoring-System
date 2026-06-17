@@ -15,7 +15,7 @@ import paramiko
 from honeypot.command_handler import CommandRegistry
 from honeypot.logger import ShellSession
 from honeypot.telegram_service import send_shell_alert
-from honeypot.threat_engine import level_from_score, score_command
+from honeypot.threat_engine import level_from_score, score_command_mitre
 from honeypot.virtual_fs import VirtualFS
 from honeypot.websocket_events import EventBus
 
@@ -47,7 +47,7 @@ class FakeShell:
         self._session = session
         self._bus = bus
         self._fs = VirtualFS()
-        self._registry = CommandRegistry(self._fs)
+        self._registry = CommandRegistry(self._fs, self._bus)
         self._buf = ""
         self._cursor = 0
         self._esc_buf = ""
@@ -299,19 +299,24 @@ class FakeShell:
         if not cmd:
             return
 
-        delta = score_command(cmd)
+        mitre = score_command_mitre(cmd)
+        delta = mitre['score']
         self._session.threat_score += delta
         self._session.threat_level = level_from_score(self._session.threat_score)
         self._session.add_command(cmd, delta)
 
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        mitre_tag = f" [{mitre['mitre_id']}]" if mitre['mitre_id'] else ''
         print(
             f"[{now}] CMD    {self._session.threat_level:8s} | "
-            f"{self._session.ip:15s} | {self._session.username} | {cmd}",
+            f"{self._session.ip:15s} | {self._session.username} | {cmd}{mitre_tag}",
             flush=True,
         )
 
-        self._bus.emit_command(self._session, cmd, delta)
+        self._bus.emit_command(self._session, cmd, delta,
+                               mitre_id=mitre['mitre_id'],
+                               technique=mitre['technique'],
+                               tactic=mitre['tactic'])
 
         if delta > 0:
             threading.Thread(

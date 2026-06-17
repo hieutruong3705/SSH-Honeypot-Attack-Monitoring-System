@@ -1,89 +1,61 @@
-# =========================
-# GENERAL
-# =========================
+# General
 .DS_Store
 Thumbs.db
 *.log
 *.tmp
 *.temp
 
-# IDE / Editor
+# IDE / editor
 .vscode/
 .idea/
 *.swp
 
-# =========================
-# REACT (FRONTEND)
-# =========================
-frontend/node_modules/
-frontend/dist/
-frontend/build/
-
-# Environment variables
+# Secrets / environment
 .env
-.env.local
+.env.*
+!.env.example
+backend/.env
 frontend/.env
-frontend/.env.local
-frontend/.env.development.local
-frontend/.env.production.local
+frontend/.env.*
 
-# Cache
-frontend/.vite/
-frontend/.cache/
-frontend/.eslintcache
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
-# Testing
-frontend/coverage/
-
-# =========================
-# FASTAPI (BACKEND)
-# =========================
-
-# Python cache
-backend/__pycache__/
-backend/*.py[cod]
-backend/*$py.class
-
-# Virtual environment
+# Virtual environments
+venv/
+.venv/
+env/
 backend/venv/
 backend/.venv/
 backend/env/
 
-# Environment variables
-backend/.env
+# Runtime data
+honeypot.db
+*.db
+*.sqlite3
+hacker_logs.json
+backend/malware_stash/
 
-# Logs
-backend/*.log
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/.cache/
+frontend/.eslintcache
+frontend/coverage/
 
-# Database
-backend/*.db
-backend/*.sqlite3
-
-# Pytest cache
-backend/.pytest_cache/
-
-# Type checker
-backend/.mypy_cache/
-
-# Ruff / lint cache
-backend/.ruff_cache/
-
-# Coverage
-backend/.coverage
-backend/htmlcov/
-
-# Build files
+# Backend build artifacts
 backend/build/
 backend/dist/
 backend/*.egg-info/
 
-# =========================
-# DOCKER
-# =========================
+# Docker local override
 docker-compose.override.yml
-
-# =========================
-# OS FILES
-# =========================
-.DS_Store
-Thumbs.db

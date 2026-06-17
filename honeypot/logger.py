@@ -27,6 +27,8 @@ class ShellSession:
     threat_score:    int               = 0
     threat_level:    str               = 'LOW'
     should_exit:     bool              = False
+    fingerprint:     Optional[str]     = None
+    client_tool:     Optional[str]     = None
 
     # ── Factory ───────────────────────────────────────────────────────────────
 
@@ -65,6 +67,8 @@ class ShellSession:
             'threat_score':  self.threat_score,
             'threat_level':  self.threat_level,
             'command_count': len(self.commands),
+            'fingerprint':   self.fingerprint,
+            'client_tool':   self.client_tool,
         }
 
     def commands_as_dicts(self) -> list[dict]:

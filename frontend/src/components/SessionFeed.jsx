@@ -1,70 +1,151 @@
-import ThreatBadge from './ThreatBadge'
+﻿import { useState, useMemo } from 'react'
+import { TerminalSquare, ChevronDown, ChevronRight } from 'lucide-react'
 
-const CMD_COLOR = (delta) => {
-  if (delta >= 20) return 'text-red-400'
-  if (delta >= 10) return 'text-orange-400'
-  if (delta > 0) return 'text-yellow-300'
-  return 'text-gray-300'
+function classifySession(commands) {
+  if (!commands || commands.length === 0) return null
+  const tactics = new Set()
+  commands.forEach(c => {
+    if (c.mitre_id) {
+      // Map known technique IDs to tactics
+      const id = c.mitre_id
+      if (['T1105', 'T1095'].includes(id)) tactics.add('C2')
+      if (['T1222.002', 'T1070', 'T1027'].includes(id)) tactics.add('Evasion')
+      if (['T1053.003', 'T1098'].includes(id)) tactics.add('Persistence')
+      if (['T1003', 'T1110', 'T1110.002'].includes(id)) tactics.add('CredAccess')
+      if (['T1082', 'T1046', 'T1057'].includes(id)) tactics.add('Discovery')
+      if (['T1059.004', 'T1059.006', 'T1059.001'].includes(id)) tactics.add('Execution')
+      if (['T1548'].includes(id)) tactics.add('PrivEsc')
+    }
+  })
+
+  if (tactics.has('C2') && tactics.has('Evasion') && tactics.has('Persistence'))
+    return 'BOTNET DROPPER'
+  if (tactics.has('C2') && tactics.has('Evasion'))
+    return 'MALWARE DEPLOYER'
+  if (tactics.has('CredAccess') && tactics.has('Discovery'))
+    return 'RECON & STEAL'
+  if (tactics.has('CredAccess'))
+    return 'CREDENTIAL HARVESTER'
+  if (tactics.has('Persistence'))
+    return 'PERSISTENCE INSTALLER'
+  if (tactics.has('Discovery'))
+    return 'RECON SCOUT'
+  return null
+}
+
+const CLASS_COLORS = {
+  'BOTNET DROPPER':        'bg-red-500/80 text-white',
+  'MALWARE DEPLOYER':      'bg-orange-500/80 text-white',
+  'CREDENTIAL HARVESTER':  'bg-yellow-500/80 text-white',
+  'RECON & STEAL':         'bg-purple-500/80 text-white',
+  'PERSISTENCE INSTALLER': 'bg-pink-500/80 text-white',
+  'RECON SCOUT':           'bg-soft-border text-soft-textHover',
 }
 
 function SessionCard({ session }) {
+  const [expanded, setExpanded] = useState(session.active)
   const isActive = session.active
   const hasCmds = session.commands && session.commands.length > 0
+  const isCritical = session.threat_level === 'CRITICAL'
+
+  const label = useMemo(() => classifySession(session.commands), [session.commands])
 
   return (
-    <div className={`rounded-lg border bg-gray-800/60 ${isActive ? 'border-green-700' : 'border-gray-700'
-      }`}>
+    <div className={`card overflow-hidden transition-colors ${isCritical ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : ''}`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700/60">
-        <div className="flex items-center gap-2 min-w-0">
-          {isActive && (
-            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
-          )}
-          <span className="text-red-400 font-mono text-sm font-medium">{session.ip}</span>
-          <span className="text-gray-500 text-xs font-mono">{session.username}</span>
-          <ThreatBadge level={session.threat_level} />
+      <div
+        className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-soft-border/30 transition-colors"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-3">
+          <button className="text-soft-text hover:text-soft-textHover">
+            {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          </button>
+
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <span className="text-soft-textHover font-medium text-sm flex flex-wrap items-center gap-2">
+                {session.ip}
+                {session.proxy_type && (
+                  <span className="bg-red-500 text-white text-[9px] px-1 rounded font-bold tracking-wider">
+                    [{session.proxy_type.toUpperCase()}]
+                  </span>
+                )}
+                {session.client_tool && (
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold tracking-wider ${
+                    session.client_tool.includes('BOTNET') || session.client_tool.includes('SCANNER')
+                    ? 'bg-red-500/80 text-white'
+                    : 'bg-purple-500/80 text-white'
+                  }`}>
+                    {session.client_tool}
+                  </span>
+                )}
+                {label && (
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold tracking-wider ${CLASS_COLORS[label] || 'bg-soft-border text-soft-text'}`}>
+                    {label}
+                  </span>
+                )}
+              </span>
+              {isActive && (
+                <span className="w-2 h-2 rounded-full bg-soft-green animate-pulse"></span>
+              )}
+            </div>
+            <span className="text-soft-text text-xs">user: {session.username}</span>
+          </div>
         </div>
-        <div className="text-right shrink-0 ml-2">
-          <div className="text-gray-500 text-xs">
+
+        <div className="text-right">
+          <div className="text-xs font-medium">
             {isActive ? (
-              <span className="text-green-400 font-medium">● LIVE</span>
+              <span className="text-soft-green">Active</span>
             ) : (
-              `${session.duration_seconds ?? 0}s`
+              <span className="text-soft-text">{session.duration_seconds ?? 0}s</span>
             )}
           </div>
-          <div className="text-gray-600 text-xs">score {session.threat_score}</div>
+          <div className={`text-[10px] mt-0.5 ${isCritical ? 'text-red-500 font-bold' : 'text-soft-text'}`}>
+            {session.threat_level} (Score: {session.threat_score})
+          </div>
         </div>
       </div>
 
-      {/* Command stream */}
-      <div className="px-3 py-2 space-y-0.5 max-h-40 overflow-y-auto font-mono text-xs">
-        {!hasCmds && (
-          <span className="text-gray-600">no commands yet</span>
-        )}
-        {session.commands?.map((c, i) => (
-          <div key={i} className="flex items-start gap-1.5">
-            <span className="text-gray-600 shrink-0">$</span>
-            <span className={`flex-1 break-all ${CMD_COLOR(c.score_delta ?? c.score_delta)}`}>
-              {c.cmd}
-            </span>
-            {(c.score_delta > 0) && (
-              <span className="text-gray-600 shrink-0 ml-1">+{c.score_delta}</span>
+      {/* Expanded Terminal View */}
+      {expanded && (
+        <div className="border-t border-soft-border bg-[#0f172a]">
+          <div className="px-4 py-3 space-y-1.5 max-h-60 overflow-y-auto font-mono text-xs">
+            {!hasCmds && (
+              <span className="text-soft-text italic">Waiting for commands...</span>
+            )}
+            {session.commands?.map((c, i) => (
+              <div key={i} className="flex items-start gap-2 text-soft-textHover py-0.5">
+                <span className="text-soft-text shrink-0 select-none">$</span>
+                <span className="flex-1 break-all">{c.cmd}</span>
+                {c.mitre_id && (
+                  <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-blue-900/50 text-blue-300 font-bold">
+                    {c.mitre_id}
+                  </span>
+                )}
+              </div>
+            ))}
+            {isActive && (
+              <div className="flex items-center gap-2 text-soft-textHover py-0.5">
+                <span className="select-none">$</span>
+                <span className="animate-pulse bg-soft-text w-1.5 h-3.5 inline-block"></span>
+              </div>
             )}
           </div>
-        ))}
-        {isActive && (
-          <div className="flex items-center gap-1.5 text-gray-500">
-            <span>$</span>
-            <span className="animate-pulse">▌</span>
+          <div className="px-4 py-2 border-t border-soft-border flex justify-between items-center text-[10px] text-soft-text bg-soft-bg">
+            <div className="flex gap-4">
+              <span>ID: {session.session_id}</span>
+              {session.fingerprint && (
+                <span className="text-purple-400/70" title="SSH Fingerprint">
+                  FP: {session.fingerprint}
+                </span>
+              )}
+            </div>
+            <span>{session.login_time?.slice(0, 19)}</span>
           </div>
-        )}
-      </div>
-
-      {/* Footer */}
-      <div className="px-3 py-1.5 border-t border-gray-700/40 flex justify-between text-xs text-gray-600">
-        <span>{session.session_id}</span>
-        <span>{session.login_time?.slice(0, 19)}</span>
-      </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -77,30 +158,14 @@ export default function SessionFeed({ sessions }) {
   const done = all.filter(s => !s.active)
 
   return (
-    <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-semibold text-gray-200">Shell Sessions</h2>
-        <div className="flex items-center gap-3 text-xs">
-          {active.length > 0 && (
-            <span className="text-green-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-              {active.length} live
-            </span>
-          )}
-          <span className="text-gray-600">{all.length} total</span>
-        </div>
-      </div>
-
+    <div>
       {all.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-gray-600">
-          <svg className="w-8 h-8 mb-2 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-              d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <p className="text-sm">No shell sessions yet</p>
+        <div className="card flex flex-col items-center justify-center py-16 text-soft-text">
+          <TerminalSquare size={32} className="mb-3 opacity-50" />
+          <p className="text-sm font-medium">No active sessions</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-[560px] overflow-y-auto pr-1">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {active.map(s => <SessionCard key={s.session_id} session={s} />)}
           {done.map(s => <SessionCard key={s.session_id} session={s} />)}
         </div>

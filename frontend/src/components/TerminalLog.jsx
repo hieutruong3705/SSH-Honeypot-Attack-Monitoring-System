@@ -1,62 +1,46 @@
-import { useEffect, useRef } from 'react'
-
-const LINE_STYLE = {
-  LOGIN: 'text-cyan-300',
-  CMD: 'text-green-300',
-  START: 'text-blue-300',
-  END: 'text-gray-400',
-  SYSTEM: 'text-yellow-300',
-}
-
-function TerminalLine({ entry }) {
-  return (
-    <div className="flex gap-3 whitespace-pre-wrap break-words leading-6">
-      <span className="w-[7.5rem] shrink-0 text-gray-500">{entry.time}</span>
-      <span className={`w-[4.5rem] shrink-0 font-semibold ${LINE_STYLE[entry.kind] || 'text-gray-300'}`}>
-        {entry.kind}
-      </span>
-      <span className="min-w-0 flex-1 text-gray-200">{entry.text}</span>
-    </div>
-  )
-}
+﻿import { useEffect, useRef } from 'react'
 
 export default function TerminalLog({ entries, connected }) {
   const bottomRef = useRef(null)
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: 'end' })
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [entries])
 
   return (
-    <div className="bg-black rounded-lg border border-gray-800 overflow-hidden">
-      <div className="flex items-center justify-between border-b border-gray-800 bg-gray-950 px-4 py-2">
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
-            <span className="h-2.5 w-2.5 rounded-full bg-yellow-400" />
-            <span className="h-2.5 w-2.5 rounded-full bg-green-500" />
-          </div>
-          <h2 className="text-sm font-semibold text-gray-200">Terminal Log</h2>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-gray-500">
-          <span className={`h-1.5 w-1.5 rounded-full ${connected ? 'bg-green-400' : 'bg-gray-600'}`} />
-          <span>{entries.length} lines</span>
+    <div className="card overflow-hidden flex flex-col h-full bg-[#0f172a]">
+      <div className="px-4 py-3 border-b border-soft-border flex items-center justify-between bg-soft-bg">
+        <h2 className="text-sm font-medium text-soft-textHover">System Log</h2>
+        <div className="flex gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-soft-border"></div>
+          <div className="w-2.5 h-2.5 rounded-full bg-soft-border"></div>
+          <div className="w-2.5 h-2.5 rounded-full bg-soft-border"></div>
         </div>
       </div>
 
-      <div className="h-[360px] overflow-y-auto px-4 py-3 font-mono text-xs md:text-sm">
-        {entries.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-gray-700">
-            waiting for live honeypot events...
+      <div className="flex-1 overflow-y-auto p-4 font-mono text-sm">
+        {!connected && (
+          <div className="text-soft-red mb-2 italic">
+            Disconnected from server...
           </div>
-        ) : (
-          <>
-            {entries.map((entry) => (
-              <TerminalLine key={entry.id} entry={entry} />
-            ))}
-            <div ref={bottomRef} />
-          </>
         )}
+
+        {entries.map(e => {
+          let color = 'text-soft-text'
+          if (e.kind === 'LOGIN') color = 'text-soft-yellow'
+          if (e.kind === 'START') color = 'text-soft-green'
+          if (e.kind === 'CMD')   color = 'text-soft-textHover'
+          if (e.kind === 'END')   color = 'text-soft-text'
+
+          return (
+            <div key={e.id} className="mb-1 leading-relaxed break-all hover:bg-white/5 px-1 rounded transition-colors">
+              <span className="text-soft-text/60 mr-3">[{e.time}]</span>
+              <span className={`font-semibold mr-2 ${color}`}>[{e.kind}]</span>
+              <span className="text-gray-300">{e.text}</span>
+            </div>
+          )
+        })}
+        <div ref={bottomRef} className="h-4" />
       </div>
     </div>
   )

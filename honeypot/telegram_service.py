@@ -1,16 +1,17 @@
-"""Telegram alerts with per-IP cooldown to avoid spam during brute-force."""
+"""Telegram alerts with per-command cooldown to avoid spam during brute force."""
 from __future__ import annotations
 
+import os
 import queue
+import sys
 import threading
 import time
 from datetime import datetime
 
 import requests
 
-import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from config import TELEGRAM_TOKEN, TELEGRAM_CHAT_ID
+from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
 _session = requests.Session()
 _last_alert: dict[str, float] = {}
@@ -20,9 +21,9 @@ _worker_started = False
 _WORKER_LOCK = threading.Lock()
 _MAX_RETRIES = 3
 _REQUEST_TIMEOUT = 3
-_COMMAND_COOLDOWN = 3  # seconds, only suppresses duplicate shell commands
+_COMMAND_COOLDOWN = 3
 
-_EMOJI = {'LOW': '🟡', 'MEDIUM': '🟠', 'HIGH': '🔴', 'CRITICAL': '🚨'}
+_EMOJI = {"LOW": "[LOW]", "MEDIUM": "[MEDIUM]", "HIGH": "[HIGH]", "CRITICAL": "[CRITICAL]"}
 
 
 def _throttled(key: str, cooldown: int) -> bool:
@@ -35,16 +36,16 @@ def _throttled(key: str, cooldown: int) -> bool:
 
 
 def _post_now(text: str) -> bool:
-    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-        print('[!] Telegram alert skipped: TELEGRAM_TOKEN or TELEGRAM_CHAT_ID is empty')
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("[!] Telegram alert skipped: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is empty")
         return False
 
-    url = f'https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage'
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     for attempt in range(1, _MAX_RETRIES + 1):
         try:
             response = _session.post(
                 url,
-                json={'chat_id': TELEGRAM_CHAT_ID, 'text': text},
+                json={"chat_id": TELEGRAM_CHAT_ID, "text": text},
                 timeout=_REQUEST_TIMEOUT,
             )
             if response.ok:
@@ -53,15 +54,15 @@ def _post_now(text: str) -> bool:
             retry_after = 0
             if response.status_code == 429:
                 try:
-                    retry_after = int(response.json().get('parameters', {}).get('retry_after', 1))
+                    retry_after = int(response.json().get("parameters", {}).get("retry_after", 1))
                 except Exception:
                     retry_after = 1
 
-            print(f'[!] Telegram alert failed: {response.status_code} {response.text}')
+            print(f"[!] Telegram alert failed: {response.status_code} {response.text}")
             if attempt < _MAX_RETRIES:
                 time.sleep(max(retry_after, attempt))
         except Exception as exc:
-            print(f'[!] Telegram alert error: {exc}')
+            print(f"[!] Telegram alert error: {exc}")
             if attempt < _MAX_RETRIES:
                 time.sleep(attempt)
     return False
@@ -93,14 +94,14 @@ def _post(text: str) -> None:
     try:
         _alert_queue.put_nowait(text)
     except queue.Full:
-        print('[!] Telegram alert queue full, sending synchronously')
+        print("[!] Telegram alert queue full, sending synchronously")
         _post_now(text)
 
 
 def send_login_alert(attack: dict) -> None:
-    emoji = _EMOJI.get(attack['threat_level'], '⚠️')
+    emoji = _EMOJI.get(attack["threat_level"], "[WARN]")
     _post(
-        f"{emoji} SSH HONEYPOT — LOGIN\n\n"
+        f"{emoji} SSH HONEYPOT - LOGIN\n\n"
         f"IP:   {attack['ip']}\n"
         f"User: {attack['username']}\n"
         f"Pass: {attack['password']}\n"
@@ -109,14 +110,13 @@ def send_login_alert(attack: dict) -> None:
     )
 
 
-def send_shell_alert(session_id: str, ip: str, username: str,
-                     cmd: str, score: int, level: str) -> None:
-    if _throttled(f'{ip}:{cmd}', _COMMAND_COOLDOWN):
+def send_shell_alert(session_id: str, ip: str, username: str, cmd: str, score: int, level: str) -> None:
+    if _throttled(f"{ip}:{cmd}", _COMMAND_COOLDOWN):
         return
-    emoji = _EMOJI.get(level, '🔴')
+    emoji = _EMOJI.get(level, "[HIGH]")
     _post(
         f"{emoji} ATTACKER IN SHELL\n\n"
-        f"IP:      {ip}  ({username})\n"
+        f"IP:      {ip} ({username})\n"
         f"CMD:     {cmd}\n"
         f"Score:   {score} ({level})\n"
         f"Session: {session_id}"

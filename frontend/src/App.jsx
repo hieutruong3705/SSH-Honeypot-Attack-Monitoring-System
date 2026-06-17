@@ -1,9 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import LiveFeed    from './components/LiveFeed'
-import Statistics  from './components/Statistics'
-import AttackChart from './components/AttackChart'
-import SessionFeed from './components/SessionFeed'
-import TerminalLog from './components/TerminalLog'
+﻿import { useState, useEffect, useRef, useCallback } from 'react'
+import { Server, Activity, TerminalSquare } from 'lucide-react'
+import LiveFeed       from './components/LiveFeed'
+import Statistics     from './components/Statistics'
+import AttackChart    from './components/AttackChart'
+import SessionFeed    from './components/SessionFeed'
+import TerminalLog    from './components/TerminalLog'
+import AttackMap      from './components/AttackMap'
+import MalwareCaptures from './components/MalwareCaptures'
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`
 const MAX_TERMINAL_LINES = 200
@@ -26,9 +29,13 @@ const makeLogEntry = (kind, text, timestamp) => ({
 export default function App() {
   const [attacks,  setAttacks]  = useState([])
   const [stats,    setStats]    = useState(null)
-  const [sessions, setSessions] = useState({})   // { [session_id]: sessionObj }
+  const [sessions, setSessions] = useState({})
   const [terminalEntries, setTerminalEntries] = useState([])
   const [connected, setConnected] = useState(false)
+
+  // Clean UI state
+  const [activeTab, setActiveTab] = useState('overview') // 'overview', 'terminal', 'sessions'
+
   const wsRef           = useRef(null)
   const reconnectTimer  = useRef(null)
 
@@ -39,8 +46,6 @@ export default function App() {
   const pushTerminal = useCallback((entry) => {
     setTerminalEntries(prev => [...prev, entry].slice(-MAX_TERMINAL_LINES))
   }, [])
-
-  // ── WebSocket ──────────────────────────────────────────────────────────────
 
   const connect = useCallback(() => {
     const ws = new WebSocket(WS_URL)
@@ -58,18 +63,14 @@ export default function App() {
         handleEvent(msg)
       } catch (_) {}
     }
-  }, [])   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   function handleEvent(msg) {
     const { type, data } = msg
 
     if (type === 'attack') {
       setAttacks(prev => [data, ...prev].slice(0, 100))
-      pushTerminal(makeLogEntry(
-        'LOGIN',
-        `${(data.threat_level || 'LOW').padEnd(8)} | ${data.ip || '-'} | ${data.username || '-'}/${data.password || '-'} | score ${data.threat_score ?? 0}`,
-        data.timestamp,
-      ))
+      pushTerminal(makeLogEntry('LOGIN', `${data.ip} | ${data.username}/${data.password} | score ${data.threat_score ?? 0}`, data.timestamp))
       refreshStats()
       return
     }
@@ -79,11 +80,7 @@ export default function App() {
         ...prev,
         [data.session_id]: { ...data, commands: [], active: true },
       }))
-      pushTerminal(makeLogEntry(
-        'START',
-        `${data.ip || '-'} | ${data.username || '-'} | session ${data.session_id || '-'}`,
-        data.login_time,
-      ))
+      pushTerminal(makeLogEntry('START', `${data.ip} | ${data.username} | session ${data.session_id}`, data.login_time))
       return
     }
 
@@ -99,16 +96,19 @@ export default function App() {
             threat_level: data.threat_level,
             commands: [
               ...s.commands,
-              { cmd: data.cmd, score_delta: data.score_delta, timestamp: data.timestamp },
+              { cmd: data.cmd, score_delta: data.score_delta, timestamp: data.timestamp,
+                mitre_id: data.mitre_id, technique: data.technique },
             ],
           },
         }
       })
-      pushTerminal(makeLogEntry(
-        'CMD',
-        `${data.threat_level || 'LOW'} | ${data.ip || '-'} | ${data.username || '-'} | ${data.cmd || ''}`,
-        data.timestamp,
+      // Cáº­p nháº­t máº£ng attacks (Live Feed) Ä‘á»ƒ nÃ³ Ä‘á»•i mÃ u Threat Level
+      setAttacks(prev => prev.map(a =>
+        (a.ip === data.ip) // Map theo IP vÃ¬ attack object ko cÃ³ session_id
+          ? { ...a, threat_score: data.threat_score, threat_level: data.threat_level }
+          : a
       ))
+      pushTerminal(makeLogEntry('CMD', `${data.ip} | ${data.cmd}`, data.timestamp))
       return
     }
 
@@ -124,26 +124,19 @@ export default function App() {
           active: false,
         },
       }))
-      pushTerminal(makeLogEntry(
-        'END',
-        `${data.ip || '-'} | ${data.username || '-'} | session ${data.session_id || '-'} closed after ${data.duration_seconds ?? 0}s`,
-        data.login_time,
-      ))
+      pushTerminal(makeLogEntry('END', `${data.ip} | session ${data.session_id} closed`, data.login_time))
       refreshStats()
     }
   }
-
-  // ── Bootstrap ──────────────────────────────────────────────────────────────
 
   useEffect(() => {
     fetch('/api/attacks').then(r => r.json()).then(setAttacks).catch(() => {})
     refreshStats()
 
-    // Load completed sessions from DB
     fetch('/api/sessions').then(r => r.json()).then(rows => {
       const map = {}
       rows.forEach(s => {
-        map[s.session_id] = { ...s, commands: [], active: false }
+        map[s.session_id] = { ...s, active: false }
       })
       setSessions(map)
     }).catch(() => {})
@@ -155,49 +148,85 @@ export default function App() {
     }
   }, [connect, refreshStats])
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-
-      {/* Header */}
-      <header className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-soft-bg text-soft-text flex flex-col">
+      {/* Clean Navbar */}
+      <header className="header-nav px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-          <h1 className="text-lg font-bold tracking-tight">SSH Honeypot Monitor</h1>
+          <div className="bg-soft-border p-1.5 rounded-md">
+            <Server size={18} className="text-soft-textHover" />
+          </div>
+          <h1 className="text-sm font-semibold tracking-wide text-soft-textHover">
+            Honeypot Dashboard
+          </h1>
         </div>
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${
-          connected
-            ? 'bg-green-900/40 text-green-300 border-green-800'
-            : 'bg-gray-800 text-gray-500 border-gray-700'
-        }`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-green-400' : 'bg-gray-600'}`} />
-          {connected ? 'Live' : 'Reconnecting...'}
+
+        {/* Navigation Tabs */}
+        <div className="flex items-center gap-1 bg-soft-card p-1 rounded-lg border border-soft-border text-sm font-medium">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'overview' ? 'bg-soft-border text-soft-textHover' : 'hover:text-soft-textHover'}`}
+          >
+            Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('sessions')}
+            className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'sessions' ? 'bg-soft-border text-soft-textHover' : 'hover:text-soft-textHover'}`}
+          >
+            Sessions
+          </button>
+          <button
+            onClick={() => setActiveTab('terminal')}
+            className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'terminal' ? 'bg-soft-border text-soft-textHover' : 'hover:text-soft-textHover'}`}
+          >
+            System Log
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${connected ? 'bg-soft-green' : 'bg-soft-red'}`}></div>
+          <span className="text-xs">{connected ? 'Connected' : 'Offline'}</span>
         </div>
       </header>
 
-      {/* Body */}
-      <main className="p-4 md:p-6 space-y-4 max-w-screen-2xl mx-auto">
-        {/* Row 1 — stats */}
-        <Statistics stats={stats} />
+      {/* Main Content */}
+      <main className="flex-1 p-4 md:p-8 max-w-6xl mx-auto w-full space-y-6">
 
-        {/* Row 2 — terminal log + live feed */}
-        <div className="flex flex-col xl:flex-row gap-4">
-          <div className="w-full xl:w-1/2 xl:max-w-[50%]">
+        {activeTab === 'overview' && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <Statistics stats={stats} />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                <AttackMap />
+                <LiveFeed attacks={attacks} />
+              </div>
+              <div className="lg:col-span-1">
+                <AttackChart stats={stats} />
+              </div>
+            </div>
+            <MalwareCaptures />
+          </div>
+        )}
+
+        {activeTab === 'sessions' && (
+          <div className="animate-in fade-in duration-300">
+            <div className="flex items-center gap-2 mb-4">
+              <TerminalSquare size={18} className="text-soft-textHover" />
+              <h2 className="text-sm font-medium text-soft-textHover">Interactive Shell Sessions</h2>
+            </div>
+            <SessionFeed sessions={sessions} />
+          </div>
+        )}
+
+        {activeTab === 'terminal' && (
+          <div className="animate-in fade-in duration-300 h-[70vh]">
             <TerminalLog entries={terminalEntries} connected={connected} />
           </div>
-          <div className="w-full xl:w-1/2 xl:max-w-[50%]">
-            <LiveFeed attacks={attacks} />
-          </div>
-        </div>
+        )}
 
-        {/* Row 3 — charts */}
-        <div className="grid grid-cols-1 gap-4">
-          <AttackChart stats={stats} />
-        </div>
 
-        {/* Row 4 — shell sessions */}
-        <SessionFeed sessions={sessions} />
+
+
       </main>
     </div>
   )

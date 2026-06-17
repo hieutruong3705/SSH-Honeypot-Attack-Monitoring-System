@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  honeypot:
+    build: .
+    container_name: honeypot_app
+    restart: always
+    ports:
+      # Keep dashboard/API private by default. Use SSH tunnel or a reverse proxy with auth.
+      - "127.0.0.1:8000:8000"
+
+      # Expose the honeypot SSH service publicly.
+      - "0.0.0.0:2222:2222"
+    volumes:
+      - ./honeypot.db:/app/honeypot.db
+      - ./backend/malware_stash:/app/backend/malware_stash
+    environment:
+      - PYTHONUNBUFFERED=1
