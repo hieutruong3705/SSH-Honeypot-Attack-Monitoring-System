@@ -134,6 +134,31 @@ export default function App() {
       return
     }
 
+    if (type === 'ip_location_update') {
+      const locationPatch = {
+        proxy_type: data.proxy_type || null,
+        country: data.country || null,
+        city: data.city || null,
+        lat: data.lat ?? null,
+        lon: data.lon ?? null,
+      }
+
+      setAttacks(prev => prev.map(a =>
+        a.ip === data.ip ? { ...a, ...locationPatch } : a
+      ))
+
+      setSessions(prev => {
+        const next = {}
+        Object.entries(prev).forEach(([sessionId, session]) => {
+          next[sessionId] = session.ip === data.ip
+            ? { ...session, ...locationPatch }
+            : session
+        })
+        return next
+      })
+      return
+    }
+
     if (type === 'session_command') {
       setSessions(prev => {
         const s = prev[data.session_id]

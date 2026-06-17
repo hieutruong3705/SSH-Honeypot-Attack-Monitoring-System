@@ -37,7 +37,7 @@ export default function AttackChart({ stats }) {
                 <Tooltip contentStyle={TooltipStyle} itemStyle={{ color: '#e5e7eb' }} cursor={{ fill: 'rgba(255, 255, 255, 0.02)' }} />
                 <Bar dataKey="cnt" name="Attacks" radius={[2, 2, 0, 0]}>
                   {hourData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.cnt > 50 ? '#ef4444' : '#3f3f46'} />
+                    <Cell key={`cell-${index}`} fill={entry.cnt > 50 ? '#0284c7' : '#38bdf8'} />
                   ))}
                 </Bar>
               </BarChart>

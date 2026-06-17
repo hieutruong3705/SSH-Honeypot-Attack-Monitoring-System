@@ -7,7 +7,7 @@ from datetime import datetime
 
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from config import DB_PATH
+from config import DB_PATH, PROXYCHECK_API_KEY
 
 _lock = threading.Lock()
 
@@ -134,7 +134,10 @@ def get_or_fetch_ip_location(ip: str):
             # Check proxy
             proxy_type = None
             try:
-                pr = requests.get(f"https://proxycheck.io/v2/{ip}?vpn=1&asn=1", timeout=3)
+                params = {"vpn": "1", "asn": "1"}
+                if PROXYCHECK_API_KEY:
+                    params["key"] = PROXYCHECK_API_KEY
+                pr = requests.get(f"https://proxycheck.io/v2/{ip}", params=params, timeout=3)
                 pdata = pr.json()
                 if pdata.get("status") == "ok" and ip in pdata:
                     info = pdata[ip]

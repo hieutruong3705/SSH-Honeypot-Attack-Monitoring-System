@@ -52,6 +52,24 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+async def _resolve_ip_location_and_broadcast(ip: str) -> None:
+    location = await asyncio.to_thread(get_or_fetch_ip_location, ip)
+    if not location:
+        return
+
+    await manager.broadcast({
+        'type': 'ip_location_update',
+        'data': {
+            'ip': ip,
+            'country': location.get('country'),
+            'city': location.get('city'),
+            'lat': location.get('lat'),
+            'lon': location.get('lon'),
+            'proxy_type': location.get('proxy_type'),
+        },
+    })
+
+
 async def _process_queue() -> None:
     while True:
         try:
@@ -63,7 +81,7 @@ async def _process_queue() -> None:
             if event_type in ('attack', 'session_start'):
                 ip = event['data'].get('ip')
                 if ip:
-                    asyncio.create_task(asyncio.to_thread(get_or_fetch_ip_location, ip))
+                    asyncio.create_task(_resolve_ip_location_and_broadcast(ip))
 
             if event_type == 'session_end':
                 data = event['data']
