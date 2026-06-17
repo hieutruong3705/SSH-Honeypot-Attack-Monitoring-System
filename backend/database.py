@@ -12,6 +12,15 @@ from config import DB_PATH
 _lock = threading.Lock()
 
 
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    columns = {
+        row['name']
+        for row in conn.execute(f'PRAGMA table_info({table})').fetchall()
+    }
+    if column not in columns:
+        conn.execute(f'ALTER TABLE {table} ADD COLUMN {column} {definition}')
+
+
 @contextmanager
 def _get_conn():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
@@ -91,6 +100,11 @@ def init_db() -> None:
                 timestamp   TEXT    NOT NULL
             )
         ''')
+        _ensure_column(conn, 'attacks', 'fingerprint', 'TEXT')
+        _ensure_column(conn, 'attacks', 'client_tool', 'TEXT')
+        _ensure_column(conn, 'sessions', 'fingerprint', 'TEXT')
+        _ensure_column(conn, 'sessions', 'client_tool', 'TEXT')
+
 def get_or_fetch_ip_location(ip: str):
     try:
         parsed_ip = ipaddress.ip_address(ip)
