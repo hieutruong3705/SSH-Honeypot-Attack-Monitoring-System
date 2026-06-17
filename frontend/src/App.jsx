@@ -19,12 +19,62 @@ const formatClock = (value) => {
   return date.toLocaleTimeString('en-GB', { hour12: false })
 }
 
-const makeLogEntry = (kind, text, timestamp) => ({
-  id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+const makeLogEntry = (kind, text, timestamp, stableId = null) => ({
+  id: stableId || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
   kind,
   time: formatClock(timestamp),
+  timestamp: timestamp || '',
   text,
 })
+
+const toSortableTime = (value) => {
+  if (!value) return 0
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T')
+  const time = new Date(normalized).getTime()
+  return Number.isNaN(time) ? 0 : time
+}
+
+const buildTerminalHistory = (attackRows, sessionRows) => {
+  const entries = []
+
+  attackRows.forEach((a, index) => {
+    entries.push(makeLogEntry(
+      'LOGIN',
+      `${a.ip || '-'} | ${a.username || '-'}/${a.password || '-'} | score ${a.threat_score ?? 0}`,
+      a.timestamp,
+      `attack-${a.id ?? index}`,
+    ))
+  })
+
+  sessionRows.forEach((s, sessionIndex) => {
+    entries.push(makeLogEntry(
+      'START',
+      `${s.ip || '-'} | ${s.username || '-'} | session ${s.session_id || '-'}`,
+      s.login_time,
+      `session-${s.session_id || sessionIndex}-start`,
+    ))
+
+    ;(s.commands || []).forEach((c, commandIndex) => {
+      entries.push(makeLogEntry(
+        'CMD',
+        `${s.ip || '-'} | ${c.cmd || c.command || ''}`,
+        c.timestamp || c.time,
+        `session-${s.session_id || sessionIndex}-cmd-${commandIndex}`,
+      ))
+    })
+
+    entries.push(makeLogEntry(
+      'END',
+      `${s.ip || '-'} | session ${s.session_id || '-'} closed`,
+      s.end_time || s.login_time,
+      `session-${s.session_id || sessionIndex}-end`,
+    ))
+  })
+
+  return entries
+    .sort((a, b) => toSortableTime(a.timestamp) - toSortableTime(b.timestamp))
+    .slice(-MAX_TERMINAL_LINES)
+}
 
 export default function App() {
   const [attacks,  setAttacks]  = useState([])
@@ -130,19 +180,39 @@ export default function App() {
   }
 
   useEffect(() => {
-    fetch('/api/attacks').then(r => r.json()).then(setAttacks).catch(() => {})
+    let cancelled = false
+
+    const attacksRequest = fetch('/api/attacks')
+      .then(r => r.json())
+      .catch(() => [])
+
+    const sessionsRequest = fetch('/api/sessions')
+      .then(r => r.json())
+      .catch(() => [])
+
+    attacksRequest.then(rows => {
+      if (!cancelled) setAttacks(rows)
+    })
     refreshStats()
 
-    fetch('/api/sessions').then(r => r.json()).then(rows => {
+    sessionsRequest.then(rows => {
+      if (cancelled) return
       const map = {}
       rows.forEach(s => {
         map[s.session_id] = { ...s, active: false }
       })
       setSessions(map)
-    }).catch(() => {})
+    })
+
+    Promise.all([attacksRequest, sessionsRequest]).then(([attackRows, sessionRows]) => {
+      if (!cancelled) {
+        setTerminalEntries(buildTerminalHistory(attackRows, sessionRows))
+      }
+    })
 
     connect()
     return () => {
+      cancelled = true
       clearTimeout(reconnectTimer.current)
       wsRef.current?.close()
     }
